@@ -1,0 +1,33 @@
+{
+  "name": "centrapay-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for the Centrapay payments API — create and test NZ payment flows directly from Claude Code",
+  "main": "dist/index.js",
+  "bin": {
+    "centrapay-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/index.ts",
+    "start": "node dist/index.js",
+    "test": "jest"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "testMatch": ["**/__tests__/**/*.test.ts"]
+  },
+  "keywords": ["mcp", "centrapay", "payments", "nz", "fintech", "claude", "claude-code"],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.0.0",
+    "jest": "^30.0.0",
+    "ts-jest": "^29.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.0"
+  }
+}

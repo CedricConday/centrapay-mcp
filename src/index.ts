@@ -1,0 +1,72 @@
+#!/usr/bin/env node
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+} from "@modelcontextprotocol/sdk/types.js";
+
+import {
+  createPaymentRequestTool,
+  handleCreatePaymentRequest,
+  getPaymentRequestTool,
+  handleGetPaymentRequest,
+  cancelPaymentRequestTool,
+  handleCancelPaymentRequest,
+  listAssetTypesTool,
+  handleListAssetTypes,
+} from "./tools/payments.js";
+
+const server = new Server(
+  { name: "centrapay-mcp", version: "0.1.0" },
+  { capabilities: { tools: {} } }
+);
+
+server.setRequestHandler(ListToolsRequestSchema, async () => ({
+  tools: [
+    createPaymentRequestTool,
+    getPaymentRequestTool,
+    cancelPaymentRequestTool,
+    listAssetTypesTool,
+  ],
+}));
+
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params;
+
+  try {
+    let text: string;
+
+    switch (name) {
+      case "create_payment_request":
+        text = await handleCreatePaymentRequest(args as { merchantId: string; amount: number; currency: string; description?: string });
+        break;
+      case "get_payment_status":
+        text = await handleGetPaymentRequest(args as { id: string });
+        break;
+      case "cancel_payment_request":
+        text = await handleCancelPaymentRequest(args as { id: string });
+        break;
+      case "list_asset_types":
+        text = await handleListAssetTypes();
+        break;
+      default:
+        throw new Error(`Unknown tool: ${name}`);
+    }
+
+    return { content: [{ type: "text", text }] };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { content: [{ type: "text", text: `Error: ${msg}` }], isError: true };
+  }
+});
+
+async function main() {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
