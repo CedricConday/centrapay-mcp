@@ -64,3 +64,38 @@ export async function cancelPaymentRequest(id: string): Promise<void> {
 export async function listAssetTypes(): Promise<unknown> {
   return cpFetch("GET", "/asset-types");
 }
+
+export interface Merchant {
+  id: string;
+  name: string;
+  country: string;
+  test?: boolean;
+}
+
+export interface CreateMerchantParams {
+  name: string;
+  country: string;
+  test?: boolean;
+}
+
+export async function createMerchant(params: CreateMerchantParams): Promise<Merchant> {
+  return cpFetch<Merchant>("POST", "/merchants", params);
+}
+
+export async function getMerchant(id: string): Promise<Merchant> {
+  return cpFetch<Merchant>("GET", `/merchants/${id}`);
+}
+
+export interface WebhookEvent {
+  id: string;
+  type: string;
+  merchantId: string;
+  paymentRequestId: string;
+  createdAt: string;
+  value: { amount: number; currency: string };
+}
+
+export async function listWebhookEvents(merchantId: string): Promise<WebhookEvent[]> {
+  const result = await cpFetch<{ items: WebhookEvent[] }>("GET", `/merchants/${merchantId}/webhook-events`);
+  return result.items ?? [];
+}

@@ -3,7 +3,11 @@ import {
   getPaymentRequest,
   cancelPaymentRequest,
   listAssetTypes,
+  createMerchant,
+  getMerchant,
+  listWebhookEvents,
   PaymentRequest,
+  Merchant,
 } from "../centrapay-client.js";
 
 function formatPaymentRequest(pr: PaymentRequest): string {
@@ -86,4 +90,76 @@ export const listAssetTypesTool = {
 export async function handleListAssetTypes(): Promise<string> {
   const result = await listAssetTypes();
   return JSON.stringify(result, null, 2);
+}
+
+function formatMerchant(m: Merchant): string {
+  return [
+    `ID:      ${m.id}`,
+    `Name:    ${m.name}`,
+    `Country: ${m.country}`,
+    `Test:    ${m.test ?? false}`,
+  ].join("\n");
+}
+
+export const createMerchantTool = {
+  name: "create_merchant",
+  description: "Register a new merchant account in the Centrapay sandbox.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      name: { type: "string", description: "Business name" },
+      country: { type: "string", description: "ISO country code (e.g. NZ)" },
+      test: { type: "boolean", description: "Set true to create a test merchant (default true for sandbox)" },
+    },
+    required: ["name", "country"],
+  },
+};
+
+export async function handleCreateMerchant(args: {
+  name: string;
+  country: string;
+  test?: boolean;
+}): Promise<string> {
+  const m = await createMerchant({ ...args, test: args.test ?? true });
+  return formatMerchant(m);
+}
+
+export const getMerchantTool = {
+  name: "get_merchant",
+  description: "Get details for a Centrapay merchant by ID.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      id: { type: "string", description: "Merchant ID" },
+    },
+    required: ["id"],
+  },
+};
+
+export async function handleGetMerchant(args: { id: string }): Promise<string> {
+  const m = await getMerchant(args.id);
+  return formatMerchant(m);
+}
+
+export const listWebhookEventsTool = {
+  name: "list_webhook_events",
+  description: "List webhook events for a merchant — payment completions, cancellations, expirations.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      merchantId: { type: "string", description: "Merchant ID to list events for" },
+    },
+    required: ["merchantId"],
+  },
+};
+
+export async function handleListWebhookEvents(args: { merchantId: string }): Promise<string> {
+  const events = await listWebhookEvents(args.merchantId);
+  if (events.length === 0) return "No webhook events found for this merchant.";
+  return events
+    .map(
+      (e) =>
+        `[${e.createdAt}] ${e.type} — PR ${e.paymentRequestId} — ${e.value.amount} ${e.value.currency}`
+    )
+    .join("\n");
 }

@@ -9,6 +9,22 @@ interface PaymentRequest {
   url: string;
 }
 
+interface Merchant {
+  id: string;
+  name: string;
+  country: string;
+  test?: boolean;
+}
+
+interface WebhookEvent {
+  id: string;
+  type: string;
+  merchantId: string;
+  paymentRequestId: string;
+  createdAt: string;
+  value: { amount: number; currency: string };
+}
+
 function formatPaymentRequest(pr: PaymentRequest): string {
   return [
     `ID:          ${pr.id}`,
@@ -18,6 +34,22 @@ function formatPaymentRequest(pr: PaymentRequest): string {
     `Expires:     ${pr.expiresAt}`,
     `Payment URL: ${pr.url}`,
   ].join("\n");
+}
+
+function formatMerchant(m: Merchant): string {
+  return [
+    `ID:      ${m.id}`,
+    `Name:    ${m.name}`,
+    `Country: ${m.country}`,
+    `Test:    ${m.test ?? false}`,
+  ].join("\n");
+}
+
+function formatWebhookEvents(events: WebhookEvent[]): string {
+  if (events.length === 0) return "No webhook events found for this merchant.";
+  return events
+    .map((e) => `[${e.createdAt}] ${e.type} — PR ${e.paymentRequestId} — ${e.value.amount} ${e.value.currency}`)
+    .join("\n");
 }
 
 function isValidCurrency(code: string): boolean {
@@ -36,6 +68,32 @@ const mockPaymentRequest: PaymentRequest = {
   expiresAt: "2026-07-01T12:00:00Z",
   url: "https://app.centrapay.com/pay/pr_abc123",
 };
+
+const mockMerchant: Merchant = {
+  id: "merchant_xyz",
+  name: "Conday Digital",
+  country: "NZ",
+  test: true,
+};
+
+const mockWebhookEvents: WebhookEvent[] = [
+  {
+    id: "evt_001",
+    type: "payment.completed",
+    merchantId: "merchant_xyz",
+    paymentRequestId: "pr_abc123",
+    createdAt: "2026-07-01T11:00:00Z",
+    value: { amount: 2500, currency: "NZD" },
+  },
+  {
+    id: "evt_002",
+    type: "payment.cancelled",
+    merchantId: "merchant_xyz",
+    paymentRequestId: "pr_def456",
+    createdAt: "2026-07-01T11:05:00Z",
+    value: { amount: 500, currency: "NZD" },
+  },
+];
 
 describe("payment request formatting", () => {
   test("formats all fields correctly", () => {
@@ -56,6 +114,56 @@ describe("payment request formatting", () => {
   test("handles cancelled status", () => {
     const cancelled = { ...mockPaymentRequest, status: "cancelled" as const };
     expect(formatPaymentRequest(cancelled)).toContain("Status:      cancelled");
+  });
+});
+
+describe("merchant formatting", () => {
+  test("formats all fields correctly", () => {
+    const output = formatMerchant(mockMerchant);
+    expect(output).toContain("ID:      merchant_xyz");
+    expect(output).toContain("Name:    Conday Digital");
+    expect(output).toContain("Country: NZ");
+    expect(output).toContain("Test:    true");
+  });
+
+  test("defaults test field to false when absent", () => {
+    const noTest = { id: "m1", name: "Biz", country: "NZ" };
+    expect(formatMerchant(noTest)).toContain("Test:    false");
+  });
+
+  test("NZ country code preserved", () => {
+    expect(mockMerchant.country).toBe("NZ");
+  });
+});
+
+describe("webhook events formatting", () => {
+  test("formats events with type, PR id, amount", () => {
+    const output = formatWebhookEvents(mockWebhookEvents);
+    expect(output).toContain("payment.completed");
+    expect(output).toContain("pr_abc123");
+    expect(output).toContain("2500 NZD");
+  });
+
+  test("formats multiple events on separate lines", () => {
+    const output = formatWebhookEvents(mockWebhookEvents);
+    const lines = output.split("\n");
+    expect(lines).toHaveLength(2);
+  });
+
+  test("returns empty message when no events", () => {
+    expect(formatWebhookEvents([])).toBe("No webhook events found for this merchant.");
+  });
+
+  test("includes timestamp in output", () => {
+    const output = formatWebhookEvents(mockWebhookEvents);
+    expect(output).toContain("2026-07-01T11:00:00Z");
+  });
+
+  test("payment.cancelled event formatted correctly", () => {
+    const output = formatWebhookEvents(mockWebhookEvents);
+    expect(output).toContain("payment.cancelled");
+    expect(output).toContain("pr_def456");
+    expect(output).toContain("500 NZD");
   });
 });
 
