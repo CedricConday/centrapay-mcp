@@ -6,6 +6,9 @@ import {
   createMerchant,
   getMerchant,
   listWebhookEvents,
+  listPaymentRequests,
+  simulatePayment,
+  createRefund,
   PaymentRequest,
   Merchant,
 } from "../centrapay-client.js";
@@ -162,4 +165,68 @@ export async function handleListWebhookEvents(args: { merchantId: string }): Pro
         `[${e.createdAt}] ${e.type} — PR ${e.paymentRequestId} — ${e.value.amount} ${e.value.currency}`
     )
     .join("\n");
+}
+
+export const listPaymentRequestsTool = {
+  name: "list_payment_requests",
+  description: "List all payment requests for a merchant — see status, amounts, and expiry.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      merchantId: { type: "string", description: "Merchant ID to list payment requests for" },
+    },
+    required: ["merchantId"],
+  },
+};
+
+export async function handleListPaymentRequests(args: { merchantId: string }): Promise<string> {
+  const requests = await listPaymentRequests(args.merchantId);
+  if (requests.length === 0) return "No payment requests found for this merchant.";
+  return requests.map(formatPaymentRequest).join("\n\n---\n\n");
+}
+
+export const simulatePaymentTool = {
+  name: "simulate_payment",
+  description: "Simulate a payment in the sandbox (triggers payment.completed). Sandbox only — use to test your webhook handlers without scanning a QR code.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      paymentRequestId: { type: "string", description: "Payment request ID to simulate payment on" },
+    },
+    required: ["paymentRequestId"],
+  },
+};
+
+export async function handleSimulatePayment(args: { paymentRequestId: string }): Promise<string> {
+  await simulatePayment(args.paymentRequestId);
+  return `Sandbox payment triggered for ${args.paymentRequestId}. Check list_webhook_events for the payment.completed event.`;
+}
+
+export const createRefundTool = {
+  name: "create_refund",
+  description: "Initiate a refund for a completed payment request. Amount must not exceed the original payment.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      paymentRequestId: { type: "string", description: "Payment request ID to refund" },
+      amount: { type: "number", description: "Amount to refund (smallest currency unit — cents)" },
+      reason: { type: "string", description: "Optional refund reason" },
+    },
+    required: ["paymentRequestId", "amount"],
+  },
+};
+
+export async function handleCreateRefund(args: {
+  paymentRequestId: string;
+  amount: number;
+  reason?: string;
+}): Promise<string> {
+  const refund = await createRefund(args.paymentRequestId, args.amount, args.reason);
+  return [
+    `Refund ID:          ${refund.id}`,
+    `Payment Request ID: ${refund.paymentRequestId}`,
+    `Amount:             ${refund.amount} ${refund.currency}`,
+    `Status:             ${refund.status}`,
+    `Created:            ${refund.createdAt}`,
+  ].join("\n");
 }

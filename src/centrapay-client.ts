@@ -99,3 +99,40 @@ export async function listWebhookEvents(merchantId: string): Promise<WebhookEven
   const result = await cpFetch<{ items: WebhookEvent[] }>("GET", `/merchants/${merchantId}/webhook-events`);
   return result.items ?? [];
 }
+
+export async function listPaymentRequests(
+  merchantId: string
+): Promise<PaymentRequest[]> {
+  const result = await cpFetch<{ items: PaymentRequest[] }>(
+    "GET",
+    `/payment-requests?merchantId=${merchantId}`
+  );
+  return result.items ?? [];
+}
+
+export async function simulatePayment(paymentRequestId: string): Promise<void> {
+  await cpFetch("POST", `/payment-requests/${paymentRequestId}/pay`, {
+    assetType: "centrapay.nzd.test",
+    value: { amount: 0, currency: "NZD" },
+  });
+}
+
+export interface Refund {
+  id: string;
+  paymentRequestId: string;
+  amount: number;
+  currency: string;
+  status: string;
+  createdAt: string;
+}
+
+export async function createRefund(
+  paymentRequestId: string,
+  amount: number,
+  reason?: string
+): Promise<Refund> {
+  return cpFetch<Refund>("POST", `/payment-requests/${paymentRequestId}/refunds`, {
+    amount,
+    reason,
+  });
+}

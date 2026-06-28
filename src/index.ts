@@ -21,6 +21,12 @@ import {
   handleGetMerchant,
   listWebhookEventsTool,
   handleListWebhookEvents,
+  listPaymentRequestsTool,
+  handleListPaymentRequests,
+  simulatePaymentTool,
+  handleSimulatePayment,
+  createRefundTool,
+  handleCreateRefund,
 } from "./tools/payments.js";
 
 const server = new Server(
@@ -37,6 +43,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     createMerchantTool,
     getMerchantTool,
     listWebhookEventsTool,
+    listPaymentRequestsTool,
+    simulatePaymentTool,
+    createRefundTool,
   ],
 }));
 
@@ -67,6 +76,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       case "list_webhook_events":
         text = await handleListWebhookEvents(args as { merchantId: string });
+        break;
+      case "list_payment_requests":
+        text = await handleListPaymentRequests(args as { merchantId: string });
+        break;
+      case "simulate_payment":
+        text = await handleSimulatePayment(args as { paymentRequestId: string });
+        break;
+      case "create_refund":
+        text = await handleCreateRefund(args as { paymentRequestId: string; amount: number; reason?: string });
         break;
       default:
         throw new Error(`Unknown tool: ${name}`);
