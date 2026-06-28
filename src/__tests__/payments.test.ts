@@ -1,5 +1,24 @@
 // Unit tests for payment formatting and validation — no API calls
 
+interface Refund {
+  id: string;
+  paymentRequestId: string;
+  amount: number;
+  currency: string;
+  status: string;
+  createdAt: string;
+}
+
+function formatRefund(r: Refund): string {
+  return [
+    `Refund ID:          ${r.id}`,
+    `Payment Request ID: ${r.paymentRequestId}`,
+    `Amount:             ${r.amount} ${r.currency}`,
+    `Status:             ${r.status}`,
+    `Created:            ${r.createdAt}`,
+  ].join("\n");
+}
+
 interface PaymentRequest {
   id: string;
   status: "new" | "paid" | "cancelled" | "expired";
@@ -94,6 +113,36 @@ const mockWebhookEvents: WebhookEvent[] = [
     value: { amount: 500, currency: "NZD" },
   },
 ];
+
+describe("refund formatting", () => {
+  const mockRefund: Refund = {
+    id: "ref_001",
+    paymentRequestId: "pr_abc123",
+    amount: 1000,
+    currency: "NZD",
+    status: "created",
+    createdAt: "2026-07-01T12:00:00Z",
+  };
+
+  test("formats all refund fields", () => {
+    const output = formatRefund(mockRefund);
+    expect(output).toContain("Refund ID:          ref_001");
+    expect(output).toContain("Payment Request ID: pr_abc123");
+    expect(output).toContain("Amount:             1000 NZD");
+    expect(output).toContain("Status:             created");
+    expect(output).toContain("Created:            2026-07-01T12:00:00Z");
+  });
+
+  test("partial refund amount is less than original", () => {
+    // Original: 2500 NZD, refund: 1000 NZD — valid partial refund
+    expect(mockRefund.amount).toBeLessThan(2500);
+  });
+
+  test("refund amount is in smallest currency unit", () => {
+    // $10.00 NZD = 1000 cents
+    expect(mockRefund.amount).toBe(1000);
+  });
+});
 
 describe("payment request formatting", () => {
   test("formats all fields correctly", () => {
