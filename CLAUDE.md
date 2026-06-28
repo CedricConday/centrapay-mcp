@@ -18,7 +18,7 @@ Without credentials, the tools will return an error on every call — there is n
 ```bash
 npm install
 npm run build   # TypeScript → dist/
-npm test        # Jest — 11 tests, no API calls
+npm test        # Jest — 22 tests, no API calls
 ```
 
 ## Architecture
@@ -28,7 +28,7 @@ src/
 ├── index.ts                    # MCP server (stdio transport)
 ├── centrapay-client.ts         # REST client — X-Api-Key auth
 └── tools/
-    └── payments.ts             # 7 tools: create, status, cancel, list_asset_types, create_merchant, get_merchant, list_webhook_events
+    └── payments.ts             # 10 tools: create, status, cancel, list_asset_types, create_merchant, get_merchant, list_webhook_events, list_payment_requests, simulate_payment, create_refund
 ```
 
 ## Adding a tool
