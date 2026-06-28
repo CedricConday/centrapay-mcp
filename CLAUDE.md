@@ -28,7 +28,7 @@ src/
 ├── index.ts                    # MCP server (stdio transport)
 ├── centrapay-client.ts         # REST client — X-Api-Key auth
 └── tools/
-    └── payments.ts             # 4 tools: create, status, cancel, list_asset_types
+    └── payments.ts             # 7 tools: create, status, cancel, list_asset_types, create_merchant, get_merchant, list_webhook_events
 ```
 
 ## Adding a tool

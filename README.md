@@ -13,10 +13,13 @@ Ask Claude things like:
 
 | Tool | What it does |
 |---|---|
-| `create_payment_request` | Create a Centrapay payment request (sandbox) |
+| `create_payment_request` | Create a Centrapay payment request (returns URL + ID) |
 | `get_payment_status` | Poll payment status by ID |
 | `cancel_payment_request` | Cancel an active payment request |
-| `list_asset_types` | Show available payment methods (NZD, crypto, vouchers) |
+| `list_asset_types` | All supported payment methods (NZD, crypto, vouchers) |
+| `create_merchant` | Register a merchant account in the sandbox |
+| `get_merchant` | Get merchant details by ID |
+| `list_webhook_events` | List payment events (completed, cancelled, expired) |
 
 ---
 
@@ -48,6 +51,26 @@ claude mcp add centrapay-mcp node /path/to/centrapay-mcp/dist/index.js \
 Centrapay engineers build the payment infrastructure that NZ merchants use daily. I built this to understand their API from the outside — what it's like to integrate, where the friction is, what a developer hitting their docs for the first time actually experiences.
 
 The tool is useful for testing payment flows without leaving Claude Code. It's also a signal: if you're interviewing at Centrapay and a candidate shows up having already shipped an MCP server around your API, they've done the reading.
+
+---
+
+## Amount formatting
+
+Centrapay amounts are always in the **smallest currency unit** (like Stripe):
+
+| Display | API value |
+|---|---|
+| $1.00 NZD | `100` |
+| $25.00 NZD | `2500` |
+
+---
+
+## Tests
+
+```bash
+npm test
+# Tests: 19 passed (payment formatting, merchant, webhook events, validation)
+```
 
 ---
 
