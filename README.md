@@ -20,6 +20,9 @@ Ask Claude things like:
 | `create_merchant` | Register a merchant account in the sandbox |
 | `get_merchant` | Get merchant details by ID |
 | `list_webhook_events` | List payment events (completed, cancelled, expired) |
+| `list_payment_requests` | List all payment requests for a merchant |
+| `simulate_payment` | Trigger sandbox payment completion (no QR scan needed) |
+| `create_refund` | Initiate a refund on a completed payment |
 
 ---
 
