@@ -1,36 +1,43 @@
 # centrapay-mcp
 
-An MCP server for the [Centrapay](https://docs.centrapay.com) payments API — bring NZ payment flow testing directly into Claude Code, Claude Desktop, and any MCP-compatible AI tool.
+An MCP server for the [Centrapay](https://docs.centrapay.com) payments API — bring NZ payment-flow testing directly into Claude Code, Claude Desktop, and any MCP-compatible AI tool.
 
 Ask Claude things like:
-- *"Create a $25 NZD payment request on merchant X"*
+- *"Create a $25 NZD payment request under config X"*
 - *"What's the status of payment request abc123?"*
-- *"What asset types does Centrapay support?"*
+- *"List the merchants on this account"*
+
+---
+
+## Centrapay's model
+
+Centrapay is structured **Account → Merchant Config (`configId`) → Payment Request**. A payment request is always created under a merchant config, and money is expressed as a `value` object with the amount in **minor units as a string** (`{ "amount": "2500", "currency": "NZD" }` = $25.00).
+
+This server speaks that model directly — endpoints, methods, and field names are matched to the live API (see *Verification* below).
 
 ---
 
 ## Tools
 
-| Tool | What it does |
-|---|---|
-| `create_payment_request` | Create a Centrapay payment request (returns URL + ID) |
-| `get_payment_status` | Poll payment status by ID |
-| `cancel_payment_request` | Cancel an active payment request |
-| `list_asset_types` | All supported payment methods (NZD, crypto, vouchers) |
-| `create_merchant` | Register a merchant account in the sandbox |
-| `get_merchant` | Get merchant details by ID |
-| `list_webhook_events` | List payment events (completed, cancelled, expired) |
-| `list_payment_requests` | List all payment requests for a merchant |
-| `simulate_payment` | Trigger sandbox payment completion (no QR scan needed) |
-| `create_refund` | Initiate a refund on a completed payment |
+| Tool | What it does | Endpoint |
+|---|---|---|
+| `create_payment_request` | Create a request under a `configId` | `POST /payment-requests` |
+| `get_payment_status` | Get a request by id | `GET /payment-requests/{id}` |
+| `void_payment_request` | Void (cancel) a request | `POST /payment-requests/{id}/void` |
+| `list_payment_requests` | List by `externalRef` for a merchant account | `GET /payment-requests/external-ref/{ref}` |
+| `pay_payment_request` | Settle in the sandbox (`assetType` + `assetId`) | `POST /payment-requests/{id}/pay` |
+| `create_refund` | Refund a paid request (`value` + `externalRef`) | `POST /payment-requests/{id}/refund` |
+| `list_merchants` | Merchants visible to the API key | `GET /merchants` |
+| `get_merchant` | Merchant details by id | `GET /merchants/{id}` |
+| `create_merchant` | Create a merchant under an account | `POST /merchants` |
+
+Auth is via the `x-api-key` header.
 
 ---
 
 ## Setup
 
-**1. Get sandbox credentials**
-
-Contact [integrations@centrapay.com](mailto:integrations@centrapay.com) or see [docs.centrapay.com](https://docs.centrapay.com/api/introduction) to get sandbox API access.
+**1. Credentials** — a public **test** key is documented at [docs.centrapay.com/api/auth](https://docs.centrapay.com/api/auth); for your own merchant config, contact [integrations@centrapay.com](mailto:integrations@centrapay.com).
 
 **2. Install and build**
 
@@ -44,27 +51,20 @@ npm install && npm run build
 
 ```bash
 claude mcp add centrapay-mcp node /path/to/centrapay-mcp/dist/index.js \
-  -e CENTRAPAY_API_KEY=your_sandbox_key
+  -e CENTRAPAY_API_KEY=your_key
 ```
+
+---
+
+## Verification
+
+The **request contract** (endpoints, methods, body shapes, `x-api-key` auth) is verified against the live sandbox at `service.centrapay.com` — e.g. `list_merchants` returns live data, and `create_payment_request` reaches authorization with a well-formed body. A full `create → pay → refund` round-trip requires a `configId` under your own merchant account, so response formatting is intentionally **defensive** (known fields with fallbacks, plus raw passthrough) until pinned against a live create.
 
 ---
 
 ## Why
 
-Centrapay engineers build the payment infrastructure that NZ merchants use daily. I built this to understand their API from the outside — what it's like to integrate, where the friction is, what a developer hitting their docs for the first time actually experiences.
-
-The tool is useful for testing payment flows without leaving Claude Code. It's also a signal: if you're interviewing at Centrapay and a candidate shows up having already shipped an MCP server around your API, they've done the reading.
-
----
-
-## Amount formatting
-
-Centrapay amounts are always in the **smallest currency unit** (like Stripe):
-
-| Display | API value |
-|---|---|
-| $1.00 NZD | `100` |
-| $25.00 NZD | `2500` |
+Centrapay builds the payment infrastructure NZ merchants use daily. I built this to understand their API from the outside — what integrating actually feels like, and where the friction is. If you're interviewing a candidate who already shipped a correct MCP server around your API, they've done the reading.
 
 ---
 
@@ -72,7 +72,8 @@ Centrapay amounts are always in the **smallest currency unit** (like Stripe):
 
 ```bash
 npm test
-# Tests: 19 passed (payment formatting, merchant, webhook events, validation)
+# Tests run against the real source (not reimplemented copies):
+# amount → minor-unit-string coercion, and defensive response formatting.
 ```
 
 ---

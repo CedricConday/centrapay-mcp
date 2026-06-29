@@ -2,51 +2,56 @@
 
 ## What this project is
 
-An MCP server for the Centrapay payments API (NZ). Enables Claude Code to create and test NZ payment flows — create payment requests, check status, cancel, and list asset types.
+An MCP server for the Centrapay payments API (NZ). Enables Claude Code to create and test NZ payment flows — payment requests, settlement, refunds, and merchant lookup. Speaks Centrapay's real model: **Account → Merchant Config (`configId`) → Payment Request**, with money as `{ amount: string (minor units), currency }`.
 
 ## Credentials
 
 ```
-CENTRAPAY_API_KEY=your_sandbox_key
+CENTRAPAY_API_KEY=your_key
 ```
 
-Get a sandbox key from docs.centrapay.com (contact integrations@centrapay.com).
-Without credentials, the tools will return an error on every call — there is no free fallback (unlike xe-mcp).
+Public test key documented at docs.centrapay.com/api/auth; for your own merchant config contact integrations@centrapay.com. There is no free fallback (unlike xe-mcp) — every call hits the live API. Auth header is `x-api-key`.
 
 ## Build and test
 
 ```bash
 npm install
 npm run build   # TypeScript → dist/
-npm test        # Jest — 22 tests, no API calls
+npm test        # Jest — tests the real source (no network)
 ```
 
 ## Architecture
 
 ```
 src/
-├── index.ts                    # MCP server (stdio transport)
-├── centrapay-client.ts         # REST client — X-Api-Key auth
+├── index.ts                    # MCP server (stdio transport) — 9 tools
+├── centrapay-client.ts         # REST client — x-api-key auth, amount→minor-unit-string
 └── tools/
-    └── payments.ts             # 10 tools: create, status, cancel, list_asset_types, create_merchant, get_merchant, list_webhook_events, list_payment_requests, simulate_payment, create_refund
+    └── payments.ts             # tool defs + handlers, defensive response formatting
 ```
+
+Tools: `create_payment_request`, `get_payment_status`, `void_payment_request`,
+`list_payment_requests`, `pay_payment_request`, `create_refund`,
+`list_merchants`, `get_merchant`, `create_merchant`.
 
 ## Adding a tool
 
-1. Add a client method in `centrapay-client.ts`
+1. Add a client method in `centrapay-client.ts` (match the real endpoint/method/body)
 2. Add tool definition + handler in `src/tools/payments.ts`
 3. Import and register in `src/index.ts`
-4. Write a unit test that tests formatting/validation without hitting the API
+4. Add a test against the real exported function
 
-## Testing approach
+## Verification approach
 
-Unit tests cover data formatting, validation, and status logic — no live API calls.
-Integration tests (against the sandbox) are manual for now.
+The request contract (endpoints, methods, bodies, auth) is verified against the live
+sandbox. Response field names are only confirmed once a live `create` runs under a real
+`configId`, so formatting is defensive (known fields + fallbacks + raw passthrough).
+Don't assert response shapes that haven't been observed live.
 
 ## Key Centrapay concepts
 
-- **Payment request**: A merchant-side object with a URL the customer opens to pay
-- **Asset type**: The payment method — NZD, Bitcoin, gift vouchers, etc.
-- **Amount**: In the smallest currency unit (cents) — $25.00 NZD = 2500
-- **Status**: `new` → `paid` | `cancelled` | `expired`
-- **Merchant ID**: Required to create payment requests — from your sandbox account
+- **Merchant Config (`configId`)**: payment requests are created under this, not a bare merchant id
+- **value**: `{ amount, currency }` where amount is minor units **as a string** — $25.00 NZD = `"2500"`
+- **Pay**: sandbox settlement needs `assetType` (e.g. `centrapay.nzd.test`) + an asset reference + `idempotencyKey`
+- **Void**: cancel is `POST /{id}/void` (not DELETE); **Refund** is `POST /{id}/refund` with `value` + `externalRef`
+- **List**: no flat list-all — payment requests are looked up by `externalRef` + `merchantAccountId`
