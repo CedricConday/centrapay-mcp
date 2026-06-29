@@ -177,6 +177,25 @@ export async function handleCreateRefund(args: {
   idempotencyKey: string;
   externalRef: string;
 }): Promise<string> {
+  // Best-effort over-refund guard: if the original amount is readable, refuse a
+  // refund that exceeds it (or uses a different currency). Skipped silently when
+  // the field isn't present (response shapes are defensive). Note: this does not
+  // subtract prior partial refunds. See review 2026-06-29.
+  const original = await getPaymentRequest(args.id).catch(() => null);
+  const origAmount = original?.value?.amount;
+  if (origAmount !== undefined && /^\d+$/.test(String(origAmount))) {
+    if (args.amount > Number(origAmount)) {
+      throw new Error(
+        `Refund amount ${args.amount} exceeds the original ${origAmount} (minor units) for ${args.id}.`
+      );
+    }
+    const origCurrency = original?.value?.currency;
+    if (origCurrency !== undefined && origCurrency !== args.currency) {
+      throw new Error(
+        `Refund currency ${args.currency} does not match the original ${origCurrency} for ${args.id}.`
+      );
+    }
+  }
   const r = await refundPaymentRequest(args.id, args.amount, args.currency, args.idempotencyKey, args.externalRef);
   return `Refund created for ${args.id}.\n${JSON.stringify(r, null, 2)}`;
 }
