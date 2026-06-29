@@ -74,7 +74,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       case "create_refund":
         text = await handleCreateRefund(
-          args as { id: string; amount: number; currency: string; externalRef: string }
+          args as { id: string; amount: number; currency: string; idempotencyKey: string; externalRef: string }
         );
         break;
       case "list_merchants":

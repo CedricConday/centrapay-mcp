@@ -25,8 +25,8 @@ This server speaks that model directly — endpoints, methods, and field names a
 | `get_payment_status` | Get a request by id | `GET /payment-requests/{id}` |
 | `void_payment_request` | Void (cancel) a request | `POST /payment-requests/{id}/void` |
 | `list_payment_requests` | List by `externalRef` for a merchant account | `GET /payment-requests/external-ref/{ref}` |
-| `pay_payment_request` | Settle in the sandbox (`assetType` + `assetId`) | `POST /payment-requests/{id}/pay` |
-| `create_refund` | Refund a paid request (`value` + `externalRef`) | `POST /payment-requests/{id}/refund` |
+| `pay_payment_request` | Settle a paid request — **live call** (test vs live depends on key + `assetType`) | `POST /payment-requests/{id}/pay` |
+| `create_refund` | Refund a paid request (`value` + `idempotencyKey` + `externalRef`) | `POST /payment-requests/{id}/refund` |
 | `list_merchants` | Merchants visible to the API key | `GET /merchants` |
 | `get_merchant` | Merchant details by id | `GET /merchants/{id}` |
 | `create_merchant` | Create a merchant under an account | `POST /merchants` |
@@ -58,7 +58,7 @@ claude mcp add centrapay-mcp node /path/to/centrapay-mcp/dist/index.js \
 
 ## Verification
 
-The **request contract** (endpoints, methods, body shapes, `x-api-key` auth) is verified against the live sandbox at `service.centrapay.com` — e.g. `list_merchants` returns live data, and `create_payment_request` reaches authorization with a well-formed body. A full `create → pay → refund` round-trip requires a `configId` under your own merchant account, so response formatting is intentionally **defensive** (known fields with fallbacks, plus raw passthrough) until pinned against a live create.
+The **request contract** (endpoints, methods, body shapes, `x-api-key` auth) is pinned by **contract tests** (`src/__tests__/payments.test.ts`) that mock `fetch` and assert the exact method, path, and body for `create` / `pay` / `refund` — including the required refund `idempotencyKey`. Note: Centrapay has **no separate sandbox host** — `service.centrapay.com` is production, and test vs live is determined by your API key and the asset types you settle with, so `pay` / `refund` are real money-moving calls. A full `create → pay → refund` round-trip needs a `configId` under your own merchant account, so response formatting stays **defensive** (known fields with fallbacks, plus raw passthrough) until pinned against a live create.
 
 ---
 

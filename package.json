@@ -1,6 +1,6 @@
 {
   "name": "centrapay-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server for the Centrapay payments API \u2014 create and test NZ payment flows directly from Claude Code",
   "main": "dist/index.js",
   "bin": {

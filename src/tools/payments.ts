@@ -153,25 +153,31 @@ export async function handlePayPaymentRequest(args: {
 // ---- create_refund ----
 export const createRefundTool = {
   name: "create_refund",
-  description: "Refund a paid payment request. Amount in minor units; must not exceed the original.",
+  description:
+    "Refund a paid payment request. amount is in MINOR units (cents): 2500 = $25.00, must not exceed the original. Requires an idempotencyKey — a refund moves money irreversibly, so a retry without one would double-refund.",
   inputSchema: {
     type: "object",
     properties: {
       id: { type: "string", description: "Payment request id to refund" },
-      amount: { type: "number", description: "Refund amount in minor units" },
+      amount: { type: "number", description: "Refund amount in MINOR units (cents): 2500 = $25.00. Must not exceed the original." },
       currency: { type: "string", description: "Currency code, e.g. NZD" },
+      idempotencyKey: {
+        type: "string",
+        description: "Unique key that makes the refund safe to retry (prevents a double-refund). Reuse the same key for the same logical refund.",
+      },
       externalRef: { type: "string", description: "Caller reference for the refund" },
     },
-    required: ["id", "amount", "currency", "externalRef"],
+    required: ["id", "amount", "currency", "idempotencyKey", "externalRef"],
   },
 };
 export async function handleCreateRefund(args: {
   id: string;
   amount: number;
   currency: string;
+  idempotencyKey: string;
   externalRef: string;
 }): Promise<string> {
-  const r = await refundPaymentRequest(args.id, args.amount, args.currency, args.externalRef);
+  const r = await refundPaymentRequest(args.id, args.amount, args.currency, args.idempotencyKey, args.externalRef);
   return `Refund created for ${args.id}.\n${JSON.stringify(r, null, 2)}`;
 }
 

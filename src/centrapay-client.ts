@@ -1,4 +1,8 @@
-const BASE = "https://service.centrapay.com/api";
+// Base URL is configurable so a non-production host can be targeted; it defaults
+// to production. Centrapay has no separate "sandbox" host — test vs live is
+// determined by your API key and the asset types you settle with, so money-moving
+// calls (pay / refund) hit the LIVE service. See review 2026-06-29.
+const BASE = process.env.CENTRAPAY_API_BASE ?? "https://service.centrapay.com/api";
 
 // Centrapay money is { amount: string (minor units), currency }. Amount is a STRING.
 export interface Money {
@@ -49,8 +53,23 @@ async function cpFetch<T>(method: string, path: string, body?: unknown): Promise
 }
 
 export function toMinorUnitString(amount: number | string): string {
-  // Centrapay expects amount in minor units as a string ("10000" = $100.00).
-  return typeof amount === "string" ? amount : String(Math.round(amount));
+  // Centrapay amounts are MINOR UNITS as a string ("2500" = $25.00). Reject
+  // non-integers / non-numeric strings so a major-unit value (e.g. 25.5 dollars)
+  // can't silently settle as the wrong amount. See review 2026-06-29.
+  if (typeof amount === "string") {
+    if (!/^\d+$/.test(amount.trim())) {
+      throw new Error(
+        `amount must be a whole number of minor units (cents) as a string, e.g. "2500" for $25.00 — got "${amount}"`
+      );
+    }
+    return amount.trim();
+  }
+  if (!Number.isInteger(amount) || amount < 0) {
+    throw new Error(
+      `amount must be a non-negative whole number of MINOR units (cents), e.g. 2500 for $25.00 — got ${amount}. Do not pass major units (25 means $0.25, not $25.00).`
+    );
+  }
+  return String(amount);
 }
 
 // ---- Payment requests ----
@@ -115,10 +134,14 @@ export async function refundPaymentRequest(
   id: string,
   amount: number | string,
   currency: string,
+  idempotencyKey: string,
   externalRef: string
 ): Promise<PaymentRequest> {
+  // idempotencyKey is REQUIRED: a refund moves money irreversibly, so a retried
+  // call without one would double-refund. See review 2026-06-29.
   return cpFetch<PaymentRequest>("POST", `/payment-requests/${id}/refund`, {
     value: { amount: toMinorUnitString(amount), currency },
+    idempotencyKey,
     externalRef,
   });
 }
