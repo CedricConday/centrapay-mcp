@@ -1,55 +1,76 @@
 const BASE = "https://service.centrapay.com/api";
 
-export interface PaymentRequest {
-  id: string;
-  status: "new" | "paid" | "cancelled" | "expired";
-  merchantName: string;
-  value: { amount: number; currency: string };
-  expiresAt: string;
-  url: string;
+// Centrapay money is { amount: string (minor units), currency }. Amount is a STRING.
+export interface Money {
+  amount: string;
+  currency: string;
 }
 
-export interface CreatePaymentRequestParams {
-  merchantId: string;
-  amount: number;
-  currency: string;
-  description?: string;
-}
+// Response shapes are intentionally loose: the real field names are only
+// confirmed once we can run a live `create` against a real merchant config.
+// Until then we keep raw passthrough + defensive formatting in the tools layer.
+export type PaymentRequest = Record<string, unknown> & {
+  id?: string;
+  status?: string;
+  value?: Money;
+};
+
+export type Merchant = Record<string, unknown> & {
+  merchantId?: string;
+  id?: string;
+  name?: string;
+};
 
 function apiKey(): string {
   const key = process.env.CENTRAPAY_API_KEY;
-  if (!key) throw new Error("CENTRAPAY_API_KEY must be set (get a sandbox key at docs.centrapay.com)");
+  if (!key)
+    throw new Error(
+      "CENTRAPAY_API_KEY must be set. Public test key is documented at docs.centrapay.com/api/auth; for your own merchant config contact integrations@centrapay.com."
+    );
   return key;
 }
 
-async function cpFetch<T>(
-  method: string,
-  path: string,
-  body?: unknown
-): Promise<T> {
+async function cpFetch<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: {
-      "X-Api-Key": apiKey(),
+      "x-api-key": apiKey(),
       "Content-Type": "application/json",
     },
     body: body ? JSON.stringify(body) : undefined,
   });
 
+  const text = await res.text();
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Centrapay API ${res.status}: ${text}`);
+    throw new Error(`Centrapay API ${res.status} ${method} ${path}: ${text}`);
   }
-  return res.json() as Promise<T>;
+  // Some endpoints (void) may return empty body.
+  return (text ? JSON.parse(text) : {}) as T;
 }
 
-export async function createPaymentRequest(
-  params: CreatePaymentRequestParams
-): Promise<PaymentRequest> {
+export function toMinorUnitString(amount: number | string): string {
+  // Centrapay expects amount in minor units as a string ("10000" = $100.00).
+  return typeof amount === "string" ? amount : String(Math.round(amount));
+}
+
+// ---- Payment requests ----
+
+export interface CreatePaymentRequestParams {
+  configId: string;
+  amount: number | string;
+  currency: string;
+  idempotencyKey?: string;
+  externalRef?: string;
+  expirySeconds?: number;
+}
+
+export async function createPaymentRequest(p: CreatePaymentRequestParams): Promise<PaymentRequest> {
   return cpFetch<PaymentRequest>("POST", "/payment-requests", {
-    merchantId: params.merchantId,
-    value: { amount: params.amount, currency: params.currency },
-    description: params.description,
+    configId: p.configId,
+    value: { amount: toMinorUnitString(p.amount), currency: p.currency },
+    ...(p.idempotencyKey ? { idempotencyKey: p.idempotencyKey } : {}),
+    ...(p.externalRef ? { externalRef: p.externalRef } : {}),
+    ...(p.expirySeconds ? { expirySeconds: p.expirySeconds } : {}),
   });
 }
 
@@ -57,82 +78,67 @@ export async function getPaymentRequest(id: string): Promise<PaymentRequest> {
   return cpFetch<PaymentRequest>("GET", `/payment-requests/${id}`);
 }
 
-export async function cancelPaymentRequest(id: string): Promise<void> {
-  await cpFetch("DELETE", `/payment-requests/${id}`);
+// Cancel is a void action (POST), not a DELETE.
+export async function voidPaymentRequest(id: string): Promise<PaymentRequest> {
+  return cpFetch<PaymentRequest>("POST", `/payment-requests/${id}/void`, {});
 }
 
-export async function listAssetTypes(): Promise<unknown> {
-  return cpFetch("GET", "/asset-types");
+// List is keyed by externalRef + merchantAccountId (no flat "list all").
+export async function listPaymentRequestsByExternalRef(
+  externalRef: string,
+  merchantAccountId: string
+): Promise<PaymentRequest[]> {
+  const r = await cpFetch<{ items?: PaymentRequest[] }>(
+    "GET",
+    `/payment-requests/external-ref/${encodeURIComponent(externalRef)}?merchantAccountId=${encodeURIComponent(
+      merchantAccountId
+    )}`
+  );
+  return r.items ?? [];
 }
 
-export interface Merchant {
-  id: string;
-  name: string;
-  country: string;
-  test?: boolean;
+// Sandbox settlement. Requires assetType + idempotencyKey + an asset reference.
+export async function payPaymentRequest(
+  id: string,
+  assetType: string,
+  idempotencyKey: string,
+  assetId: string
+): Promise<PaymentRequest> {
+  return cpFetch<PaymentRequest>("POST", `/payment-requests/${id}/pay`, {
+    assetType,
+    idempotencyKey,
+    assetId,
+  });
+}
+
+export async function refundPaymentRequest(
+  id: string,
+  amount: number | string,
+  currency: string,
+  externalRef: string
+): Promise<PaymentRequest> {
+  return cpFetch<PaymentRequest>("POST", `/payment-requests/${id}/refund`, {
+    value: { amount: toMinorUnitString(amount), currency },
+    externalRef,
+  });
+}
+
+// ---- Merchants ----
+
+export async function listMerchants(): Promise<Merchant[]> {
+  const r = await cpFetch<{ items?: Merchant[] }>("GET", "/merchants");
+  return r.items ?? [];
+}
+
+export async function getMerchant(merchantId: string): Promise<Merchant> {
+  return cpFetch<Merchant>("GET", `/merchants/${merchantId}`);
 }
 
 export interface CreateMerchantParams {
+  accountId: string;
   name: string;
-  country: string;
-  test?: boolean;
 }
 
-export async function createMerchant(params: CreateMerchantParams): Promise<Merchant> {
-  return cpFetch<Merchant>("POST", "/merchants", params);
-}
-
-export async function getMerchant(id: string): Promise<Merchant> {
-  return cpFetch<Merchant>("GET", `/merchants/${id}`);
-}
-
-export interface WebhookEvent {
-  id: string;
-  type: string;
-  merchantId: string;
-  paymentRequestId: string;
-  createdAt: string;
-  value: { amount: number; currency: string };
-}
-
-export async function listWebhookEvents(merchantId: string): Promise<WebhookEvent[]> {
-  const result = await cpFetch<{ items: WebhookEvent[] }>("GET", `/merchants/${merchantId}/webhook-events`);
-  return result.items ?? [];
-}
-
-export async function listPaymentRequests(
-  merchantId: string
-): Promise<PaymentRequest[]> {
-  const result = await cpFetch<{ items: PaymentRequest[] }>(
-    "GET",
-    `/payment-requests?merchantId=${merchantId}`
-  );
-  return result.items ?? [];
-}
-
-export async function simulatePayment(paymentRequestId: string): Promise<void> {
-  await cpFetch("POST", `/payment-requests/${paymentRequestId}/pay`, {
-    assetType: "centrapay.nzd.test",
-    value: { amount: 0, currency: "NZD" },
-  });
-}
-
-export interface Refund {
-  id: string;
-  paymentRequestId: string;
-  amount: number;
-  currency: string;
-  status: string;
-  createdAt: string;
-}
-
-export async function createRefund(
-  paymentRequestId: string,
-  amount: number,
-  reason?: string
-): Promise<Refund> {
-  return cpFetch<Refund>("POST", `/payment-requests/${paymentRequestId}/refunds`, {
-    amount,
-    reason,
-  });
+export async function createMerchant(p: CreateMerchantParams): Promise<Merchant> {
+  return cpFetch<Merchant>("POST", "/merchants", { accountId: p.accountId, name: p.name });
 }

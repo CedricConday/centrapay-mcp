@@ -11,26 +11,24 @@ import {
   handleCreatePaymentRequest,
   getPaymentRequestTool,
   handleGetPaymentRequest,
-  cancelPaymentRequestTool,
-  handleCancelPaymentRequest,
-  listAssetTypesTool,
-  handleListAssetTypes,
-  createMerchantTool,
-  handleCreateMerchant,
-  getMerchantTool,
-  handleGetMerchant,
-  listWebhookEventsTool,
-  handleListWebhookEvents,
+  voidPaymentRequestTool,
+  handleVoidPaymentRequest,
   listPaymentRequestsTool,
   handleListPaymentRequests,
-  simulatePaymentTool,
-  handleSimulatePayment,
+  payPaymentRequestTool,
+  handlePayPaymentRequest,
   createRefundTool,
   handleCreateRefund,
+  listMerchantsTool,
+  handleListMerchants,
+  getMerchantTool,
+  handleGetMerchant,
+  createMerchantTool,
+  handleCreateMerchant,
 } from "./tools/payments.js";
 
 const server = new Server(
-  { name: "centrapay-mcp", version: "0.1.0" },
+  { name: "centrapay-mcp", version: "0.2.0" },
   { capabilities: { tools: {} } }
 );
 
@@ -38,14 +36,13 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     createPaymentRequestTool,
     getPaymentRequestTool,
-    cancelPaymentRequestTool,
-    listAssetTypesTool,
-    createMerchantTool,
-    getMerchantTool,
-    listWebhookEventsTool,
+    voidPaymentRequestTool,
     listPaymentRequestsTool,
-    simulatePaymentTool,
+    payPaymentRequestTool,
     createRefundTool,
+    listMerchantsTool,
+    getMerchantTool,
+    createMerchantTool,
   ],
 }));
 
@@ -57,34 +54,37 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     switch (name) {
       case "create_payment_request":
-        text = await handleCreatePaymentRequest(args as { merchantId: string; amount: number; currency: string; description?: string });
+        text = await handleCreatePaymentRequest(
+          args as { configId: string; amount: number; currency: string; idempotencyKey?: string; externalRef?: string }
+        );
         break;
       case "get_payment_status":
         text = await handleGetPaymentRequest(args as { id: string });
         break;
-      case "cancel_payment_request":
-        text = await handleCancelPaymentRequest(args as { id: string });
-        break;
-      case "list_asset_types":
-        text = await handleListAssetTypes();
-        break;
-      case "create_merchant":
-        text = await handleCreateMerchant(args as { name: string; country: string; test?: boolean });
-        break;
-      case "get_merchant":
-        text = await handleGetMerchant(args as { id: string });
-        break;
-      case "list_webhook_events":
-        text = await handleListWebhookEvents(args as { merchantId: string });
+      case "void_payment_request":
+        text = await handleVoidPaymentRequest(args as { id: string });
         break;
       case "list_payment_requests":
-        text = await handleListPaymentRequests(args as { merchantId: string });
+        text = await handleListPaymentRequests(args as { externalRef: string; merchantAccountId: string });
         break;
-      case "simulate_payment":
-        text = await handleSimulatePayment(args as { paymentRequestId: string });
+      case "pay_payment_request":
+        text = await handlePayPaymentRequest(
+          args as { id: string; assetType: string; assetId: string; idempotencyKey: string }
+        );
         break;
       case "create_refund":
-        text = await handleCreateRefund(args as { paymentRequestId: string; amount: number; reason?: string });
+        text = await handleCreateRefund(
+          args as { id: string; amount: number; currency: string; externalRef: string }
+        );
+        break;
+      case "list_merchants":
+        text = await handleListMerchants();
+        break;
+      case "get_merchant":
+        text = await handleGetMerchant(args as { merchantId: string });
+        break;
+      case "create_merchant":
+        text = await handleCreateMerchant(args as { accountId: string; name: string });
         break;
       default:
         throw new Error(`Unknown tool: ${name}`);
