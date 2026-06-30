@@ -1,5 +1,9 @@
 # centrapay-mcp
 
+[![CI](https://github.com/CedricConday/centrapay-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/CedricConday/centrapay-mcp/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/centrapay-mcp.svg)](https://www.npmjs.com/package/centrapay-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
 An MCP server for the [Centrapay](https://docs.centrapay.com) payments API — bring NZ payment-flow testing directly into Claude Code, Claude Desktop, and any MCP-compatible AI tool.
 
 Ask Claude things like:
